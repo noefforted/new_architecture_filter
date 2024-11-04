@@ -1,0 +1,4 @@
+prisma
+APScheduler
+numpy
+python-dotenv
