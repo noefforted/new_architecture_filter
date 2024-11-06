@@ -1,6 +1,6 @@
 datasource db {
     provider = "postgresql"
-    url      = "postgresql://admin:admin@localhost:5432/tracker"
+    url      = env("DATABASE_URL")
 }
 
 generator client {

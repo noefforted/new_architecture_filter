@@ -2,3 +2,4 @@ prisma
 APScheduler
 numpy
 python-dotenv
+geopy

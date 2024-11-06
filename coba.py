@@ -5,5 +5,6 @@ coordinates = [
     [52.5200066, 13.404954],   # Titik ketiga (Berlin, Germany)
     [48.856614, 2.3522219],    # Titik keempat (Paris, France)
 ]
+recent_total_distance=12345
 
-print(calculate_total_distance(coordinates))
+print(calculate_total_distance(recent_total_distance, coordinates))

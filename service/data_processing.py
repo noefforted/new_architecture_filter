@@ -1,6 +1,6 @@
 import numpy as np
-from datetime import datetime
-import math
+from datetime import datetime, timedelta
+from geopy.distance import geodesic
 
 
 def remove_idle_data(data: np.array, tdelay: int = 600):
@@ -114,7 +114,7 @@ def regression(cycles_median):
     return regression_results
 
 
-def fuel_calculation(np_data, data_reg):
+def fuel_cycle_calculation(np_data, data_reg):
     # Menghitung total fuel consumed dan fuel rate untuk setiap siklus
     cycle_fuel_consumed = []
     cycle_distance = []
@@ -169,40 +169,51 @@ def fuel_calculation(np_data, data_reg):
 
     return fuel_data_summary
 
-import math
 
-def calculate_total_distance(coordinates):
+def calculate_total_distance(recent_total_distance, coordinates):
     """
-    Menghitung jarak kumulatif dari daftar koordinat [[latitude, longitude], ...] menggunakan formula Haversine.
+    Menghitung jarak kumulatif dari daftar koordinat [[latitude, longitude], ...] menggunakan library geopy.
     Parameter:
+    - recent_total_distance: Jarak total sebelumnya dalam meter.
     - coordinates: List of lists [[lat1, lon1], [lat2, lon2], ...].
     
     Return:
-    - List of cumulative distances dalam meter.
+    - List of cumulative distances dalam meter, dimulai dengan recent_total_distance.
     """
-    R = 6371000  # Radius bumi dalam meter
-    cumulative_distances = [0.0]  # Dimulai dari 0 untuk titik awal
+    cumulative_distances = [recent_total_distance]  # Dimulai dari jarak total sebelumnya
     
-    total_distance = 0.0
+    total_distance = recent_total_distance
     
     for i in range(1, len(coordinates)):
         lat1, lon1 = coordinates[i - 1]
         lat2, lon2 = coordinates[i]
         
-        # Konversi latitude dan longitude dari derajat ke radian
-        phi1 = math.radians(lat1)
-        phi2 = math.radians(lat2)
-        delta_phi = math.radians(lat2 - lat1)
-        delta_lambda = math.radians(lon2 - lon1)
-
-        # Formula Haversine
-        a = math.sin(delta_phi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(delta_lambda / 2) ** 2
-        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-
-        # Jarak antara dua titik dalam meter
-        distance = R * c
+        # Menghitung jarak antara dua titik dalam meter menggunakan geodesic
+        distance = geodesic((lat1, lon1), (lat2, lon2)).meters
         total_distance += distance
-        cumulative_distances.append(round(total_distance,2))
+        cumulative_distances.append(round(total_distance, 2))
     
     return cumulative_distances
+
+def calculate_operating_time(dt_array):
+    # Ekstraksi kolom timestamp dan operating_status dari dt_array
+    timestamps = dt_array[:, 2]
+    operating_status = dt_array[:, 3]
+    
+    # Inisialisasi total waktu operasi
+    total_operating_time = timedelta(0)
+    
+    # Konversi timestamp ke datetime (asumsi timestamp dalam detik)
+    timestamps = [datetime.utcfromtimestamp(ts) for ts in timestamps]
+    
+    # Loop melalui setiap entri
+    for i in range(1, len(timestamps)):
+        # Periksa apakah status operasi aktif (misalnya, 1 atau True) untuk dua titik waktu berturut-turut
+        if operating_status[i] and operating_status[i-1]:
+            # Hitung durasi antara dua timestamp berturut-turut dan tambahkan ke total_operating_time
+            delta = timestamps[i] - timestamps[i-1]
+            total_operating_time += delta
+    
+    # Mengembalikan total waktu operasi dalam detik
+    return total_operating_time.total_seconds()
 
