@@ -1,5 +1,6 @@
 import numpy as np
 from datetime import datetime
+import math
 
 
 def remove_idle_data(data: np.array, tdelay: int = 600):
@@ -167,3 +168,41 @@ def fuel_calculation(np_data, data_reg):
     ))
 
     return fuel_data_summary
+
+import math
+
+def calculate_total_distance(coordinates):
+    """
+    Menghitung jarak kumulatif dari daftar koordinat [[latitude, longitude], ...] menggunakan formula Haversine.
+    Parameter:
+    - coordinates: List of lists [[lat1, lon1], [lat2, lon2], ...].
+    
+    Return:
+    - List of cumulative distances dalam meter.
+    """
+    R = 6371000  # Radius bumi dalam meter
+    cumulative_distances = [0.0]  # Dimulai dari 0 untuk titik awal
+    
+    total_distance = 0.0
+    
+    for i in range(1, len(coordinates)):
+        lat1, lon1 = coordinates[i - 1]
+        lat2, lon2 = coordinates[i]
+        
+        # Konversi latitude dan longitude dari derajat ke radian
+        phi1 = math.radians(lat1)
+        phi2 = math.radians(lat2)
+        delta_phi = math.radians(lat2 - lat1)
+        delta_lambda = math.radians(lon2 - lon1)
+
+        # Formula Haversine
+        a = math.sin(delta_phi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(delta_lambda / 2) ** 2
+        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+        # Jarak antara dua titik dalam meter
+        distance = R * c
+        total_distance += distance
+        cumulative_distances.append(round(total_distance,2))
+    
+    return cumulative_distances
+

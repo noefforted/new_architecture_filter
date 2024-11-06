@@ -1,11 +1,11 @@
 import logging
-from repository.timescale_repository import TimescaleRepository
+from repository.log_repository import LogRepository
 from config.database_connector import database_connector
 import numpy as np
 from data_processing import remove_idle_data, remove_209_and_non_increasing_x, median_filter, define_cycle, regression, fuel_calculation
-from model.fuel_cycle import FuelCycleCreate
+from model.report_data import FuelCycleCreate
 from datetime import datetime
-from repository.postgresql_repository import FuelEfficiencyRepository
+from repository.report_repository import ReportRepository
 import prisma.errors import UniqueViolationError
 
 log_cycle = logging.getLogger("Log Cycle")
@@ -16,12 +16,12 @@ class EfficiencyService:
     @staticmethod
     async def cycle_efficiency():
         async with database_connector.prisma.tx() as ts:
-            data_imei = await TimescaleRepository.get_all_data()
+            data_imei = await LogRepository.get_all_data()
             for imei in data_imei:
                 try:
                     # Mengambil imei dari data yang belum di proses
                     log_cycle.info(f"[Cycle] Mengambil data mentah imei: {imei}")
-                    data = await TimescaleRepository.get_unprocessed_cycle(imei)
+                    data = await LogRepository.get_unprocessed_cycle(imei)
                     if data is not None:
                         np_timpestamp = np.array(data.timestamp)
                         np_distance = np.array(data.distance_total)
@@ -58,7 +58,7 @@ class EfficiencyService:
                                     )
                                     # Menghubungkan ke database
                                     async with database_connector.prisma.tx() as ts:
-                                        await FuelEfficiencyRepository.create(res, ts)
+                                        await ReportRepository.create_cycle(res, ts)
                                     log_cycle.info(f"[Data Created] Imei: {imei} Efficiency: {row[2]} Timestamp_last: {row[4]}")
                                 except UniqueViolationError as uniq:
                                     log_cycle.info(f"Data dengan Imei: {imei} dan Timestamp_last: {row[4]} sudah ada, tidak akan dibuat ulang. Info: {uniq}")
@@ -74,36 +74,36 @@ class EfficiencyService:
 
 
 
-        @staticmethod
-        async def hour_efficiency():
-            try:
-                async with database_connector.prisma.tx() as ts:
-                    data_imei = await TimescaleRepository.get_all_data()
-                    for imei in data_imei:
-                        # Mengambil imei dari data yang belum di proses
-                        log_hour.info(f"[Hour] Mengambil data mentah imei: {imei}")
-                        data = await TimescaleRepository.get_unprocessed_hour(imei)
-                        if data is not None:
-                            np_timpestamp = np.array(data.timestamp)
-                            np_latitude = np.array(data.latitude)
-                            np_longitude = np.array(data.longitude)
-                            np_altitude = np.array(data.altitude)
-                            np_heading = np.array(data.heading)
-                            np_voltage = np.array(data.voltage)
-                            np_speed = np.array(data.speed)
-                            np_distance = np.array(data.distance_total)
-                            np_fuel = np.array(data.fuel)                 
-                            np_power_status = np.array(data.power_status)
-                            np_operating_status = np.array(data.operating_status)
-                            np_device_status = np.array(data.device_status)
-                            np_calculation_cycle_status = np.array(data.calculation_cycle_status)
-                            np_calculation_hour_status = np.array(data.calculation_hour_status)
-                            np_expired_date = np.array(data.expired_date)
+    @staticmethod
+    async def hour_efficiency():
+        try:
+            async with database_connector.prisma.tx() as ts:
+                data_imei = await LogRepository.get_all_data()
+                for imei in data_imei:
+                    # Mengambil imei dari data yang belum di proses
+                    log_hour.info(f"[Hour] Mengambil data mentah imei: {imei}")
+                    data = await LogRepository.get_unprocessed_hour(imei)
+                    if data is not None:
+                        np_timpestamp = np.array(data.timestamp)
+                        np_latitude = np.array(data.latitude)
+                        np_longitude = np.array(data.longitude)
+                        np_altitude = np.array(data.altitude)
+                        np_heading = np.array(data.heading)
+                        np_voltage = np.array(data.voltage)
+                        np_speed = np.array(data.speed)
+                        np_distance = np.array(data.distance_total)
+                        np_fuel = np.array(data.fuel)                 
+                        np_power_status = np.array(data.power_status)
+                        np_operating_status = np.array(data.operating_status)
+                        np_device_status = np.array(data.device_status)
+                        np_calculation_cycle_status = np.array(data.calculation_cycle_status)
+                        np_calculation_hour_status = np.array(data.calculation_hour_status)
+                        np_expired_date = np.array(data.expired_date)
 
-                        dt_array = np.column_stack((np_timpestamp, np_latitude, np_longitude, np_altitude, np_heading, np_voltage, np_speed, 
-                                                    np_distance, np_fuel, np_power_status, np_operating_status, np_device_status, 
-                                                    np_calculation_cycle_status, np_calculation_hour_status, np_expired_date))
-                        
+                    dt_array = np.column_stack((np_timpestamp, np_latitude, np_longitude, np_altitude, np_heading, np_voltage, np_speed, 
+                                                np_distance, np_fuel, np_power_status, np_operating_status, np_device_status, 
+                                                np_calculation_cycle_status, np_calculation_hour_status, np_expired_date))
+                    
 
-            except Exception as e:
-                log_hour.error(f"Error Proses Hour, Error: {e}")
+        except Exception as e:
+            log_hour.error(f"Error Proses Hour, Error: {e}")

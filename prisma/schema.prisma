@@ -1,0 +1,124 @@
+datasource db {
+    provider = "postgresql"
+    url      = "postgresql://admin:admin@localhost:5432/tracker"
+}
+
+generator client {
+    provider             = "prisma-client-py"
+    interface            = "asyncio"
+    recursive_type_depth = 5
+}
+
+model api_key {
+    id         Int      @id @default(autoincrement())
+    token      String   @unique
+    crated_at  DateTime @default(now())
+    updated_at DateTime @default(now()) @updatedAt
+}
+
+model fuel_cycle {
+    id               BigInt             @id @default(autoincrement())
+    distance         Float
+    fuel             Float
+    fuel_efficiency  Float
+    timestamp_first  DateTime
+    timestamp_last   DateTime
+    created_at       DateTime           @default(now())
+    updated_at       DateTime           @default(now()) @updatedAt
+    fuel_report_hour fuel_report_hour[]
+    vehicle_id       Int
+
+    vehicle vehicle @relation(fields: [vehicle_id], references: [id])
+
+    @@index([timestamp_last])
+}
+
+model fuel_report_hour {
+    fuel           Float
+    latitude       Float
+    longitude      Float
+    altitude       Int
+    angle          Int
+    distance       Float
+    total_distance Float
+    timestamp      DateTime
+    sampling_time  Int
+    operating_time Int
+    created_at     DateTime @default(now())
+    updated_at     DateTime @default(now()) @updatedAt
+    fuel_cycle_id  BigInt
+    vehicle_id     Int
+
+    fuel_cycle fuel_cycle @relation(fields: [fuel_cycle_id], references: [id])
+    vehicle    vehicle    @relation(fields: [vehicle_id], references: [id])
+
+    @@unique([vehicle_id, timestamp], map: "report_timestamp")
+}
+
+model vehicle {
+    id                            Int                     @id @default(autoincrement())
+    imei                          String                  @unique
+    speed_threshold               Float
+    fuel_calibration_coefficients Float[]
+    created_at                    DateTime                @default(now())
+    updated_at                    DateTime                @default(now()) @updatedAt
+    fuel_report_hour              fuel_report_hour[]
+    fuel_cycle                    fuel_cycle[]
+    data_teltonika_buffer         data_teltonika_buffer[]
+    data_teltonika_raw            data_teltonika_raw[]
+}
+
+model data_teltonika_buffer {
+    timestamp                DateTime
+    latitude                 Float
+    longitude                Float
+    altitude                 Int
+    angle                    Int
+    speed                    Int
+    battery_voltage          Int
+    total_odometer           Int
+    fuel                     Int
+    fuel_used_gps            BigInt
+    fuel_rate_gps            Int
+    power_input              Int
+    operate_status           Boolean
+    digital_input_2          Boolean
+    gsm_signal               Int
+    ignition_on_counter      Int
+    data_payload             Json
+    vehicle_id               Int
+    calculation_cycle_status Boolean
+    calculation_hour_status  Boolean
+    created_at               DateTime @default(now())
+    updated_at               DateTime @default(now()) @updatedAt
+
+    vehicle vehicle @relation(fields: [vehicle_id], references: [id])
+
+    @@unique([vehicle_id, timestamp], map: "teltonika_buffer_vehicle_timestamp")
+}
+
+model data_teltonika_raw {
+    timestamp           DateTime
+    latitude            Float
+    longitude           Float
+    altitude            Int
+    angle               Int
+    speed               Int
+    battery_voltage     Int
+    total_odometer      Int
+    fuel                Int
+    fuel_used_gps       BigInt
+    fuel_rate_gps       Int
+    power_input         Int
+    operate_status      Boolean
+    digital_input_2     Boolean
+    gsm_signal          Int
+    ignition_on_counter Int
+    data_payload        Json
+    vehicle_id          Int
+    created_at          DateTime @default(now())
+
+    vehicle vehicle @relation(fields: [vehicle_id], references: [id])
+
+    @@unique([vehicle_id, timestamp], map: "teltonika_raw_vehicle_timestamp")
+}
