@@ -1,4 +1,3 @@
-from prisma import Prisma
 from config.database_connector import database_connector
 from model.report_data import VehicleCreate, FuelCycleCreate, FuelHourCreate
 from datetime import datetime, timedelta
@@ -11,24 +10,29 @@ class ReportRepository:
         data = await db.fuel_report_hour.find_first(
             where={"vehicle_id": vehicle_id},
             order={"timestamp": "desc"},
-            select={"total_distance": True}
+            include={"vehicle": True}
         )
         # Mengembalikan `total_distance` terbaru, atau 0 jika data tidak ditemukan
         return data["total_distance"] if data else 0
 
     @staticmethod
-    async def get_cycle_efficiency(vehicle_id, db=database_connector.prisma):
-        time_24_hours_ago = datetime.utcnow() - timedelta(hours=24)
+    async def get_cycle_efficiency(db=database_connector.prisma):
+        # Ambil timestamp terawal dari data_teltonika_buffer dengan calculation_hour_status = true, termasuk vehicle untuk mendapatkan vehicle_id
+        data_teltonika_records = await db.data_teltonika_buffer.find_many(
+            where={"calculation_hour_status": False},
+            include={"vehicle": True},
+            order={"timestamp": "asc"}  # Urutkan untuk mendapatkan timestamp paling awal
+        )
+        # Pastikan ada data yang memenuhi kriteria
+        if not data_teltonika_records:
+            return []
+        # Ambil timestamp paling awal dan daftar unique vehicle_id
+        earliest_timestamp = data_teltonika_records[0].timestamp
+        vehicle_ids = list({record.vehicle.id for record in data_teltonika_records if record.vehicle})
+        # Query fuel_cycle berdasarkan vehicle_id dan filter timestamp_first
         data = await db.fuel_cycle.find_many(
-            where={
-                "vehicle_id": vehicle_id,
-                "timestamp_last": {"gte": time_24_hours_ago}  # Filter untuk 24 jam terakhir
-            },
-            select={
-                "fuel_efficiency": True,  # Mengambil hanya kolom fuel_efficiency
-                "timestamp_first": True    # Opsional, untuk referensi waktu
-                "timestamp_last": True    # Opsional, untuk referensi waktu
-            }
+            where={"vehicle": {"id": {"in": vehicle_ids}},"timestamp_first": {"gte": earliest_timestamp}},  # Filter timestamp_first sesuai kriteria
+            include={"vehicle": True}
         )
         return data
 
@@ -37,9 +41,9 @@ class ReportRepository:
         return await db.vehicle.create(data)
 
     @staticmethod
-    async def create_cycle(data: FuelCycleCreate, db=database_connector.prisma):
+    async def create_fuel_cycle(data: FuelCycleCreate, db=database_connector.prisma):
         return await db.fuel_cycle.create(data)
 
     @staticmethod
-    async def create_hour(data: FuelHourCreate, db=database_connector.prisma):
+    async def create_fuel_report_hour(data: FuelHourCreate, db=database_connector.prisma):
         return await db.fuel_report_hour.create(data)

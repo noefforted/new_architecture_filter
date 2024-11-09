@@ -1,0 +1,18 @@
+{
+    "apps": [
+        {
+            "name": "data_aggregation_service",
+            "script": "main.py",
+            "interpreter": "./venv/bin/python3",
+            "args": [],
+            "cwd": "/home/ubuntu/service/new_architecture_filter",
+            "watch": false,
+            "autorestart": true,
+            "instances": 1,
+            "exec_mode": "fork",
+            "error_file": "./log/main_service_error.log",
+            "out_file": "./log/main_service_out.log",
+            "log_date_format": "YYYY-MM-DD HH:mm Z"
+        }
+    ]
+}

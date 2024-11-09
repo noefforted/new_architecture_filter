@@ -6,7 +6,7 @@ from geopy.distance import geodesic
 def remove_idle_data(data: np.array, tdelay: int = 600):
     res = np.array([True for _ in range(data.shape[0])])
     f_read = False
-    f_start_delay = 0
+    f_start_delay = 0.0  # Menggunakan float untuk f_start_delay
     
     # Jika data[:, 3] sudah 'True' sejak awal
     if data[0, 3]:
@@ -25,7 +25,7 @@ def remove_idle_data(data: np.array, tdelay: int = 600):
             f_read = False
         
         # Cek jika delay sudah lebih dari tdelay
-        if f_read and data[iter, 1] - f_start_delay > np.timedelta64(tdelay, "s"):
+        if f_read and (data[iter, 1] - f_start_delay) > tdelay:
             res[iter] = True
         else:
             res[iter] = False
@@ -195,10 +195,10 @@ def calculate_total_distance(recent_total_distance, coordinates):
     
     return cumulative_distances
 
-def calculate_operating_time(dt_array):
+def calculate_operating_time_hour(dt_array):
     # Ekstraksi kolom timestamp dan operating_status dari dt_array
-    timestamps = dt_array[:, 2]
-    operating_status = dt_array[:, 3]
+    timestamps = dt_array[:, 0]
+    operating_status = dt_array[:, 1]
     
     # Inisialisasi total waktu operasi
     total_operating_time = timedelta(0)
