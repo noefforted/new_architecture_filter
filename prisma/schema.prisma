@@ -77,7 +77,7 @@ model data_teltonika_buffer {
     speed                    Int
     battery_voltage          Int
     total_odometer           Int
-    fuel                     Int
+    fuel                     Float
     fuel_used_gps            BigInt
     fuel_rate_gps            Int
     power_input              Int
@@ -106,7 +106,7 @@ model data_teltonika_raw {
     speed               Int
     battery_voltage     Int
     total_odometer      Int
-    fuel                Int
+    fuel                Float
     fuel_used_gps       BigInt
     fuel_rate_gps       Int
     power_input         Int
