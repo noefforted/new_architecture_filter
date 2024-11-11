@@ -7,13 +7,16 @@ from connectivity.tcp_server import TCPServer, TCPServerCallback
 from model.request_controller import IncomingCommand, RequestPacket, ResponsePacketRecentReportHour
 from connectivity.tcp_server import TCPServer, TCPServerCallback
 from service.calculation import EfficiencyService
+from util.log import log_begin
 
+
+log_begin()
 log_app = logging.getLogger("App Controller")
 log_tcp = logging.getLogger("TCP Server")
 
 class TCPcallback(TCPServerCallback):
     async def server_handler(self, reader:StreamReader, writer:StreamWriter):
-        data = await reader.wait_for(reader.read(1000), 10)
+        data = await asyncio.wait_for(reader.read(1000), 10)
         if data:
             req = RequestPacket.model_validate_json(data)
             if req.command == IncomingCommand.GET_RECENT_HOUR:
@@ -26,7 +29,7 @@ class TCPcallback(TCPServerCallback):
                 res = ResponsePacketRecentReportHour(command = req.command, status=400, message="Bad Request (Command not found)")
                 writer.write(res.model_dump_json().encode("utf-8"))
                 await writer.drain()
-                
+
 class AppController:
     def __init__(self):
         # Inisialisasi scheduler
@@ -59,7 +62,6 @@ class AppController:
     async def run(self):
         # Menjaga aplikasi tetap berjalan hingga dihentikan
         try:
-            await self.begin()
             await self.tcp_server.run()
             log_app.info("TCP Server started.")
         except asyncio.CancelledError:

@@ -9,10 +9,11 @@ from service.data_processing import (remove_idle_data, remove_209_and_non_increa
                              calculate_operating_time_hour)
 from model.report_data import FuelCycleCreate, FuelHourCreate
 from model.request_controller import ResponsePacketRecentReportHour
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 # import prisma.errors import UniqueViolationError
 
-
+from util.log import log_begin
+log_begin()
 log_cycle = logging.getLogger("Log Cycle")
 log_hour = logging.getLogger("Log Hour")
 log_recent_hour = logging.getLogger("Log Recent Hour")
@@ -171,67 +172,63 @@ class EfficiencyService:
 
     @staticmethod
     async def recent_hour_efficiency(vehicle_id: int):
-        await database_connector.connect()
-        async with database_connector.prisma.tx() as ts:
-            data_cycle_efficiency = await ReportRepository.get_cycle_by_vehicle_id(vehicle_id)
-            cumulative_distance_hour = []
-            final_data_list = []
+        data_cycle_efficiency = await ReportRepository.get_cycle_by_vehicle_id(vehicle_id)
+        cumulative_distance_hour = []
+        final_data_list = []
 
-            for cycle in data_cycle_efficiency:
-                cycle_efficiency = cycle.fuel_efficiency
-                timestamp_last = cycle.timestamp_last        
+        for cycle in data_cycle_efficiency:
+            cycle_efficiency = cycle.fuel_efficiency
+            timestamp_last = cycle.timestamp_last        
 
-                current_time = timestamp_last
-                while current_time <= datetime.now():
-                    next_time = current_time + timedelta(hours=1)
-                    data = await LogRepository.get_unprocessed_hour(vehicle_id, current_time, next_time)
+            current_time = timestamp_last
+            while current_time <= datetime.now(timezone.utc):
+                next_time = current_time + timedelta(hours=1)
+                data = await LogRepository.get_unprocessed_hour(vehicle_id, current_time, next_time)
 
-                    if not data:
-                        current_time = next_time
-                        continue
-
-                    # Ekstraksi data yang dibutuhkan untuk setiap entry dalam `data`
-                    np_timestamp = np.array([entry.timestamp.timestamp() for entry in data], dtype=np.float64)
-                    np_latitude = np.array([entry.latitude for entry in data], dtype=np.float64)
-                    np_longitude = np.array([entry.longitude for entry in data], dtype=np.float64)
-                    np_altitude = np.array([entry.altitude for entry in data], dtype=np.float64)
-                    np_angle = np.array([entry.angle for entry in data], dtype=np.float64)
-                    np_operating_status = np.array([entry.operate_status for entry in data], dtype=np.int8)
-                    
-                    coordinates = list(zip(np_latitude, np_longitude))
-                    distance_inside_hour = calculate_total_distance(0, coordinates)
-                    distance_1_hour = distance_inside_hour[-1] - distance_inside_hour[0]
-                    # print(f"Distance 1 Hour: {distance_1_hour}")
-                    cumulative_distance_hour.append(distance_1_hour)
-
-                    arr_time_opstatus = np.column_stack((np_timestamp, np_operating_status))
-
-                    # Update current_time untuk iterasi berikutnya
+                if not data:
                     current_time = next_time
+                    continue
 
-                    fuel_1_hour = (distance_1_hour / 1000) / cycle_efficiency
-                    operating_time_1_hour = calculate_operating_time_hour(arr_time_opstatus)
+                # Ekstraksi data yang dibutuhkan untuk setiap entry dalam `data`
+                np_timestamp = np.array([entry.timestamp.timestamp() for entry in data], dtype=np.float64)
+                np_latitude = np.array([entry.latitude for entry in data], dtype=np.float64)
+                np_longitude = np.array([entry.longitude for entry in data], dtype=np.float64)
+                np_altitude = np.array([entry.altitude for entry in data], dtype=np.float64)
+                np_angle = np.array([entry.angle for entry in data], dtype=np.float64)
+                np_operating_status = np.array([entry.operate_status for entry in data], dtype=np.int8)
+                
+                coordinates = list(zip(np_latitude, np_longitude))
+                distance_inside_hour = calculate_total_distance(0, coordinates)
+                distance_1_hour = distance_inside_hour[-1] - distance_inside_hour[0]
+                # print(f"Distance 1 Hour: {distance_1_hour}")
+                cumulative_distance_hour.append(distance_1_hour)
 
-                    last_latitude = np_latitude[-1]
-                    last_longitude = np_longitude[-1]
-                    last_altitude = np_altitude[-1]
-                    last_angle = np_angle[-1]
+                arr_time_opstatus = np.column_stack((np_timestamp, np_operating_status))
 
-                    # Simpan data dalam list sementara
-                    final_data_list.append([
-                        fuel_1_hour, last_latitude, last_longitude, last_altitude, 
-                        last_angle, distance_1_hour, current_time, 3600, operating_time_1_hour
-                    ])
+                # Update current_time untuk iterasi berikutnya
+                current_time = next_time
 
-                # Hitung total_distance setelah loop selesai
-                total_distance = np.cumsum(cumulative_distance_hour)
+                fuel_1_hour = (distance_1_hour / 1000) / cycle_efficiency
+                operating_time_1_hour = calculate_operating_time_hour(arr_time_opstatus)
 
-            # Gabungkan data akhir ke dalam array `final_data`
-            final_data = np.array([
-                row + [total_distance[i]]
-                for i, row in enumerate(final_data_list)
-            ])
-            await database_connector.disconnect()
-            return final_data
+                last_latitude = np_latitude[-1]
+                last_longitude = np_longitude[-1]
+                last_altitude = np_altitude[-1]
+                last_angle = np_angle[-1]
 
-            
+                # Simpan data dalam list sementara
+                final_data_list.append([
+                    fuel_1_hour, last_latitude, last_longitude, last_altitude, 
+                    last_angle, distance_1_hour, current_time, 3600, operating_time_1_hour
+                ])
+
+            # Hitung total_distance setelah loop selesai
+            total_distance = np.cumsum(cumulative_distance_hour)
+
+        # Gabungkan data akhir ke dalam array `final_data`
+        final_data = np.array([
+            row + [total_distance[i]]
+            for i, row in enumerate(final_data_list)
+        ])
+        await database_connector.disconnect()
+        return final_data.tolist()

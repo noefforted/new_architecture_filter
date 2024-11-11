@@ -5,7 +5,7 @@ from datetime import datetime
 from model.report_data import FuelHourCreate
 
 class IncomingCommand(Enum):
-    GET_RECENT_HOUR = range(1)
+    GET_RECENT_HOUR = 1
 
 class RequestPacket(BaseModel):
     command: IncomingCommand
