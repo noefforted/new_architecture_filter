@@ -1,4 +1,3 @@
-from pydantic import BaseModel
 from prisma import types, models
 
 ApiKey = models.api_key

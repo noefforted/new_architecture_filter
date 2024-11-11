@@ -4,7 +4,7 @@ import logging
 from abc import ABC, abstractmethod
 import os
 
-log = logging.getLogger("TCP_SERVER")
+log = logging.getLogger("TCP Server")
 
 class TCPServerCallback(ABC):
     @abstractmethod

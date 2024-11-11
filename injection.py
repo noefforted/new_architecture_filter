@@ -66,7 +66,7 @@ async def main():
     await database_connector.connect()
 
     async with httpx.AsyncClient() as client:
-        response = await client.get("http://34.101.83.107:50001/api/datalog?limit=50000")
+        response = await client.get("http://34.101.83.107:50001/api/datalog?limit=75000")
         data = json.loads(response.text)[::-1]  # Membalikkan urutan data jika diperlukan
 
         for entry in data:
