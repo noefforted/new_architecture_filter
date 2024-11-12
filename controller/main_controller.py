@@ -4,7 +4,7 @@ import logging
 from config.database_connector import database_connector
 from scheduler.scheduler import CycleEfficiencyScheduler, HourEfficiencyScheduler
 from connectivity.tcp_server import TCPServer, TCPServerCallback
-from model.request_controller import IncomingCommand, RequestPacket, ResponsePacketRecentReportHour
+from model.request_controller import IncomingCommand, ResponseStatus, RequestPacket, ResponsePacketRecentReportHour
 from connectivity.tcp_server import TCPServer, TCPServerCallback
 from service.calculation import EfficiencyService
 from util.log import log_begin
@@ -23,11 +23,12 @@ class TCPcallback(TCPServerCallback):
                 vehicle_id = req.payload["vehicle_id"]
                 log_tcp.info(f"Received GET_RECENT_HOUR command. Vehicle ID: {vehicle_id}")
                 final_data = await EfficiencyService.recent_hour_efficiency(vehicle_id)
-                res = ResponsePacketRecentReportHour(command=req.command, status=200, message="Success", payload=final_data)
+                res = ResponsePacketRecentReportHour(command=req.command, status=ResponseStatus.SUCCESS, message="Success", payload=final_data)
                 writer.write(res.model_dump_json().encode("utf-8"))
+                log_tcp.info("Response sent to client.")
                 await writer.drain()
             else:
-                res = ResponsePacketRecentReportHour(command=req.command, status=400, message="Bad Request (Command not found)")
+                res = ResponsePacketRecentReportHour(command=req.command, status=ResponseStatus.BAD_REQUEST, message="Bad Request (Command not found)")
                 writer.write(res.model_dump_json().encode("utf-8"))
                 log_tcp.error("Client sent bad request (Command not found)")
                 await writer.drain()
