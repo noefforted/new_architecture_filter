@@ -15,20 +15,23 @@ log_app = logging.getLogger("App Controller")
 log_tcp = logging.getLogger("TCP Server")
 
 class TCPcallback(TCPServerCallback):
-    async def server_handler(self, reader:StreamReader, writer:StreamWriter):
+    async def server_handler(self, reader: StreamReader, writer: StreamWriter):
         data = await asyncio.wait_for(reader.read(1000), 10)
         if data:
             req = RequestPacket.model_validate_json(data)
             if req.command == IncomingCommand.GET_RECENT_HOUR:
                 vehicle_id = req.payload["vehicle_id"]
+                log_tcp.info(f"Received GET_RECENT_HOUR command. Vehicle ID: {vehicle_id}")
                 final_data = await EfficiencyService.recent_hour_efficiency(vehicle_id)
-                res = ResponsePacketRecentReportHour(command = req.command, status=200, message="Success", payload=final_data)
+                res = ResponsePacketRecentReportHour(command=req.command, status=200, message="Success", payload=final_data)
                 writer.write(res.model_dump_json().encode("utf-8"))
                 await writer.drain()
             else:
-                res = ResponsePacketRecentReportHour(command = req.command, status=400, message="Bad Request (Command not found)")
+                res = ResponsePacketRecentReportHour(command=req.command, status=400, message="Bad Request (Command not found)")
                 writer.write(res.model_dump_json().encode("utf-8"))
+                log_tcp.error("Client sent bad request (Command not found)")
                 await writer.drain()
+
 
 class AppController:
     def __init__(self):

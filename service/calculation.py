@@ -225,10 +225,20 @@ class EfficiencyService:
             # Hitung total_distance setelah loop selesai
             total_distance = np.cumsum(cumulative_distance_hour)
 
-        # Gabungkan data akhir ke dalam array `final_data`
-        final_data = np.array([
-            row + [total_distance[i]]
+        # **Konversi final_data_list ke bentuk list of dictionaries**
+        final_data = [
+            {
+                "fuel": row[0],
+                "latitude": row[1],
+                "longitude": row[2],
+                "altitude": row[3],
+                "angle": row[4],
+                "distance": row[5],
+                "timestamp": row[6],
+                "sampling_time": row[7],
+                "operating_time": row[8],
+                "total_distance": total_distance[i]  # Menambahkan total_distance
+            }
             for i, row in enumerate(final_data_list)
-        ])
-        await database_connector.disconnect()
-        return final_data.tolist()
+        ]
+        return final_data  # Mengembalikan sebagai list of dictionaries
