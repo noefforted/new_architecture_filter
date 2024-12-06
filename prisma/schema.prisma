@@ -1,6 +1,6 @@
 datasource db {
     provider = "postgresql"
-    url      = env("DATABASE_URL")
+    url      = env("TIMESCALEDB_URL")
 }
 
 generator client {
@@ -20,6 +20,7 @@ model fuel_cycle {
     id               BigInt             @id @default(autoincrement())
     distance         Float
     fuel             Float
+    fuel_level_first Float
     fuel_efficiency  Float
     timestamp_first  DateTime
     timestamp_last   DateTime
@@ -35,6 +36,7 @@ model fuel_cycle {
 
 model fuel_report_hour {
     fuel           Float
+    fuel_level     Float
     latitude       Float
     longitude      Float
     altitude       Int
@@ -76,8 +78,8 @@ model data_teltonika_buffer {
     angle                    Int
     speed                    Int
     battery_voltage          Int
-    total_odometer           Int
-    fuel                     Float
+    total_odometer           Int //Its from sensor not from calculation of coordinates
+    fuel_level               Float //Its not fuel consumption but from level sensor
     fuel_used_gps            BigInt
     fuel_rate_gps            Int
     power_input              Int
@@ -105,8 +107,8 @@ model data_teltonika_raw {
     angle               Int
     speed               Int
     battery_voltage     Int
-    total_odometer      Int
-    fuel                Float
+    total_odometer      Int //Its from sensor not from calculation of coordinates
+    fuel_level          Float //Its not fuel consumption but from level sensor
     fuel_used_gps       BigInt
     fuel_rate_gps       Int
     power_input         Int

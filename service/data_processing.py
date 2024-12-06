@@ -118,6 +118,7 @@ def fuel_cycle_calculation(np_data, data_reg):
     # Menghitung total fuel consumed dan fuel rate untuk setiap siklus
     cycle_fuel_consumed = []
     cycle_distance = []
+    fuel_level_first = []
     fuel_rate = []
     time_initial_list = []
     time_terminal_list = []
@@ -140,7 +141,8 @@ def fuel_cycle_calculation(np_data, data_reg):
 
             cycle_fuel_consumed.append(total_fuel)
             fuel_rate.append(rate)
-            cycle_distance.append(total_distance)
+            cycle_distance.append(total_distance)   
+            fuel_level_first.append(np.max(y_cycle))
 
             # Mendapatkan time_initial dan time_terminal
             res_awal = np_data[np_data[:, 1] == x_cycle[0]]
@@ -154,6 +156,7 @@ def fuel_cycle_calculation(np_data, data_reg):
     # Mengubah semua list menjadi array numpy
     cycle_fuel_consumed = np.array(cycle_fuel_consumed)
     cycle_distance = np.array(cycle_distance)
+    fuel_level_first = np.array(fuel_level_first)
     fuel_rate = np.array(fuel_rate)
     time_initial_list = np.array(time_initial_list)
     time_terminal_list = np.array(time_terminal_list)
@@ -162,6 +165,7 @@ def fuel_cycle_calculation(np_data, data_reg):
     fuel_data_summary = np.column_stack((
         cycle_fuel_consumed,
         cycle_distance,
+        fuel_level_first,
         fuel_rate,
         time_initial_list,
         time_terminal_list
@@ -171,15 +175,6 @@ def fuel_cycle_calculation(np_data, data_reg):
 
 
 def calculate_total_distance(recent_total_distance, coordinates):
-    """
-    Menghitung jarak kumulatif dari daftar koordinat [[latitude, longitude], ...] menggunakan library geopy.
-    Parameter:
-    - recent_total_distance: Jarak total sebelumnya dalam meter.
-    - coordinates: List of lists [[lat1, lon1], [lat2, lon2], ...].
-    
-    Return:
-    - List of cumulative distances dalam meter, dimulai dengan recent_total_distance.
-    """
     cumulative_distances = [recent_total_distance]  # Dimulai dari jarak total sebelumnya
     
     total_distance = recent_total_distance
@@ -194,6 +189,8 @@ def calculate_total_distance(recent_total_distance, coordinates):
         cumulative_distances.append(round(total_distance, 2))
     
     return cumulative_distances
+
+from datetime import datetime, timedelta
 
 def calculate_operating_time_hour(dt_array):
     # Ekstraksi kolom timestamp dan operating_status dari dt_array
@@ -211,9 +208,17 @@ def calculate_operating_time_hour(dt_array):
         # Periksa apakah status operasi aktif (misalnya, 1 atau True) untuk dua titik waktu berturut-turut
         if operating_status[i] and operating_status[i-1]:
             # Hitung durasi antara dua timestamp berturut-turut dan tambahkan ke total_operating_time
-            delta = timestamps[i] - timestamps[i-1]
+            delta = abs(timestamps[i] - timestamps[i-1])
             total_operating_time += delta
     
-    # Mengembalikan total waktu operasi dalam detik
-    return total_operating_time.total_seconds()
+    # Hitung total waktu operasi dalam detik
+    total_seconds = total_operating_time.total_seconds()
+    
+    # Jika nilai lebih dari 3475, set menjadi 3600
+    if total_seconds > 3475:
+        return 3600
+    
+    # Jika tidak, kembalikan nilai total waktu operasi atau 3600 (mana yang lebih kecil)
+    return min(total_seconds, 3600)
+
 

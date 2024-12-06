@@ -4,57 +4,42 @@ from model.request_controller import ResponsePacketRecentReportHour
 from datetime import datetime, timedelta
 import asyncio
 from asyncio import StreamReader, StreamWriter
+from util.log import log_begin
+# import logging
+# log_begin()
+# log_debug = logging.getLogger("Debug")
 
 class ReportRepository:
 
     @staticmethod
     async def get_recent_total_distance(vehicle_id, db=database_connector.prisma):
-        # Mengambil total_distance terbaru berdasarkan vehicle_id
         data = await db.fuel_report_hour.find_first(
             where={"vehicle_id": vehicle_id},
             order={"timestamp": "desc"},
             include={"vehicle": True}
         )
-        # Mengembalikan `total_distance` terbaru, atau 0 jika data tidak ditemukan
-        return data["total_distance"] if data else 0
+        return data.total_distance if data else 0
 
     @staticmethod
-    async def get_cycle_efficiency(db=database_connector.prisma):
-        # Ambil timestamp terawal dari data_teltonika_buffer dengan calculation_hour_status = true, termasuk vehicle untuk mendapatkan vehicle_id
-        data_teltonika_records = await db.data_teltonika_buffer.find_many(
-            where={"calculation_hour_status": False},
-            include={"vehicle": True},
-            order={"timestamp": "asc"}  # Urutkan untuk mendapatkan timestamp paling awal
+    async def get_cycle_efficiency(vehicle_id, db=database_connector.prisma):
+        data_teltonika_records = await db.data_teltonika_buffer.find_first(
+            where={"vehicle_id": vehicle_id, "calculation_hour_status": False},
+            order={"timestamp": "asc"},
+            include={"vehicle": True}
         )
-        # Pastikan ada data yang memenuhi kriteria
-        if not data_teltonika_records:
-            return []
-        # Ambil timestamp paling awal dan daftar unique vehicle_id
-        earliest_timestamp = data_teltonika_records[0].timestamp
-        vehicle_ids = list({record.vehicle.id for record in data_teltonika_records if record.vehicle})
-        # Query fuel_cycle berdasarkan vehicle_id dan filter timestamp_first
+        earliest_timestamp = data_teltonika_records.timestamp
+        # log_debug.info(f"earliest_timestamp: {earliest_timestamp}")
         data = await db.fuel_cycle.find_many(
-            where={"vehicle": {"id": {"in": vehicle_ids}},"timestamp_first": {"gte": earliest_timestamp}},  # Filter timestamp_first sesuai kriteria
+            where={"vehicle_id": vehicle_id, "timestamp_first": {"gte": earliest_timestamp}},
             include={"vehicle": True}
         )
         return data
 
     @staticmethod
-    async def get_cycle_by_vehicle_id(vehicle_id, db=database_connector.prisma):
-        # Ambil timestamp terawal dari data_teltonika_buffer dengan calculation_hour_status = true, termasuk vehicle untuk mendapatkan vehicle_id
-        data_teltonika_records = await db.data_teltonika_buffer.find_many(
-            where={"calculation_hour_status": False},
-            include={"vehicle": True},
-            order={"timestamp": "asc"}  # Urutkan untuk mendapatkan timestamp paling awal
-        )
-        # Pastikan ada data yang memenuhi kriteria
-        if not data_teltonika_records:
-            return []
-        # Ambil timestamp paling awal dan daftar unique vehicle_id
-        earliest_timestamp = data_teltonika_records[0].timestamp
-
-        data = await db.fuel_cycle.find_many(
-            where={"vehicle_id": vehicle_id, "timestamp_first": {"gte": earliest_timestamp}},
+    async def get_cycle_for_tcphour(vehicle_id, db=database_connector.prisma):
+        data = await db.fuel_cycle.find_first(
+            where={"vehicle_id": vehicle_id},
+            order={"timestamp_last": "desc"}, 
             include={"vehicle": True}
         )
         return data

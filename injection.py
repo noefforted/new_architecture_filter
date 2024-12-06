@@ -12,7 +12,7 @@ load_dotenv(override=True)
 log_begin()
 log = logging.getLogger("Inject")
 
-async def insert_log(imei, timestamp, latitude, longitude, heading, voltage, speed, distance, fuel, fuel_consumption, power_status, operate_status, device_status):
+async def insert_log(imei, timestamp, latitude, longitude, heading, voltage, speed, distance, fuel_level, fuel_consumption, power_status, operate_status, device_status):
     """
     Fungsi untuk memasukkan data ke tabel data_teltonika_buffer dan vehicle.
     """
@@ -46,7 +46,7 @@ async def insert_log(imei, timestamp, latitude, longitude, heading, voltage, spe
             "speed": speed,
             "battery_voltage": voltage,
             "total_odometer": distance,
-            "fuel": fuel,
+            "fuel_level": fuel_level,
             "fuel_used_gps": fuel_consumption,
             "fuel_rate_gps": 0,
             "power_input": 0,
@@ -79,7 +79,7 @@ async def main():
             voltage = entry.get("voltage", 0)
             speed = entry.get("speed", 0)
             distance = entry.get("distance_total", 0)
-            fuel = entry.get("fuel", 0)
+            fuel_level = entry.get("fuel", 0)
             fuel_consumption = entry.get("fuel_consumption", 0)
             power_status = entry.get("power_status", False)
             operate_status = entry.get("operate_status", False)
@@ -91,7 +91,7 @@ async def main():
             # Masukkan data ke database
             await insert_log(
                 imei, timestamp.timestamp(), latitude, longitude, heading, voltage, speed, 
-                distance, fuel, fuel_consumption, power_status, operate_status, device_status
+                distance, fuel_level, fuel_consumption, power_status, operate_status, device_status
             )
 
     await database_connector.disconnect()

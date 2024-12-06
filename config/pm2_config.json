@@ -1,11 +1,11 @@
 {
     "apps": [
         {
-            "name": "data_aggregation_service",
+            "name": "aggregation_develop",
             "script": "main.py",
             "interpreter": "./venv/bin/python3",
             "args": [],
-            "cwd": "/home/ubuntu/service/new_architecture_filter",
+            "cwd": "/home/ubuntu/service/aggregation_develop",
             "watch": false,
             "autorestart": true,
             "instances": 1,
