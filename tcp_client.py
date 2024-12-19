@@ -6,7 +6,7 @@ async def send_request():
     reader, writer = await asyncio.open_connection('localhost', 50011)
 
     # Membuat RequestPacket dan mengirimkannya sebagai JSON
-    request_packet = RequestPacket(command=IncomingCommand.GET_RECENT_HOUR, payload={"vehicle_id": 3})
+    request_packet = RequestPacket(command=IncomingCommand.GET_RECENT_HOUR, payload={"vehicle_id": 2})
     writer.write(request_packet.model_dump_json().encode("utf-8"))
     await writer.drain()
     print("Request sent to server.")

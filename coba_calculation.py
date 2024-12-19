@@ -103,113 +103,131 @@ class EfficiencyService:
                     continue
                     
                 data_cycle_efficiency = await ReportRepository.get_cycle_efficiency(ids)
+                recent_total_distance = await ReportRepository.get_recent_total_distance(ids)
 
-                for i in range(len(data_cycle_efficiency)):
-                    recent_total_distance = await ReportRepository.get_recent_total_distance(ids)
+                cycle_id = data_cycle_efficiency.id
+                vehicle_id = data_cycle_efficiency.vehicle.id
+                cycle_efficiency = data_cycle_efficiency.fuel_efficiency
+                fuel_level_first = data_cycle_efficiency.fuel_level_first
+                timestamp_first = data_cycle_efficiency.timestamp_first
+                timestamp_first_next = datetime.now(timezone.utc)
+                if cycle_efficiency == 0:
+                    log_hour.error(f"[Hour] Cycle efficiency is zero for Vehicle ID: {vehicle_id}, Cycle ID: {cycle_id}")
+                    continue
 
-                    cumulative_distance_hour = []
-                    final_data_list = []
+                log_hour.info(f"[Hour] Mengambil data mentah Vehicle ID: {vehicle_id} dan Cycle ID: {cycle_id}")  
 
-                    cycle_id = data_cycle_efficiency[i].id
-                    vehicle_id = data_cycle_efficiency[i].vehicle.id
-                    cycle_efficiency = data_cycle_efficiency[i].fuel_efficiency
-                    fuel_level_first = data_cycle_efficiency[i].fuel_level_first
-                    timestamp_first = data_cycle_efficiency[i].timestamp_first
-                    if i < len(data_cycle_efficiency) - 1:
-                        timestamp_first_next = data_cycle_efficiency[i+1].timestamp_first
-                    else:
-                        timestamp_first_next = datetime.now(timezone.utc)
-                    if cycle_efficiency == 0:
-                        log_hour.error(f"[Hour] Cycle efficiency is zero for Vehicle ID: {vehicle_id}, Cycle ID: {cycle_id}")
-                        continue
+                current_time = timestamp_first
+                while current_time <= timestamp_first_next:
+                    next_time = current_time + timedelta(hours=1)
+                    data = await LogRepository.get_unprocessed_hour(vehicle_id, current_time, next_time)
+                    last_report_hour = await ReportRepository.get_last_report_hour(vehicle_id)
 
-                    log_hour.info(f"[Hour] Mengambil data mentah Vehicle ID: {vehicle_id} dan Cycle ID: {cycle_id}")  
+                    if not data:
+                        log_hour.info(f"No data available for Vehicle ID: {vehicle_id} at date: {current_time}, generating from last report")
 
-                    current_time = timestamp_first
-                    while current_time <= timestamp_first_next:
-                        next_time = current_time + timedelta(hours=1)
-                        data = await LogRepository.get_unprocessed_hour(vehicle_id, current_time, next_time)
+                        last_fuel_level = last_report_hour.fuel_level if last_report_hour else 0
+                        last_latitude = last_report_hour.latitude if last_report_hour else 0
+                        last_longitude = last_report_hour.longitude if last_report_hour else 0
+                        last_altitude = last_report_hour.altitude if last_report_hour else 0
+                        last_angle = last_report_hour.angle if last_report_hour else 0
+                        last_total_distance = last_report_hour.total_distance if last_report_hour else 0
 
-                        if not data:
-                            final_data_list.append([0, 0, 0, 0, 0, 0, 0, current_time, 3600, 0])
-                            cumulative_distance_hour.append(0)
-                            current_time = next_time
-                            continue
+                        final_data = np.array((0, fuel_level_first, last_latitude, last_longitude, last_altitude, 
+                        last_angle, 0, last_total_distance, current_time, 3600, 0))
 
-                        # Ekstraksi data yang dibutuhkan untuk setiap entry dalam `data`
-                        np_timestamp = np.array([entry.timestamp.timestamp() for entry in data], dtype=np.float64)
-                        np_latitude = np.array([entry.latitude for entry in data], dtype=np.float64)
-                        np_longitude = np.array([entry.longitude for entry in data], dtype=np.float64)
-                        np_altitude = np.array([entry.altitude for entry in data], dtype=np.float64)
-                        np_angle = np.array([entry.angle for entry in data], dtype=np.float64)
-                        np_operating_status = np.array([entry.operate_status for entry in data], dtype=np.int8)
-                        
-                        coordinates = list(zip(np_latitude, np_longitude))
-                        distance_inside_hour = calculate_total_distance(0, coordinates)
-                        distance_1_hour = abs(distance_inside_hour[-1] - distance_inside_hour[0])
-                        cumulative_distance_hour.append(distance_1_hour)
-
-                        arr_time_opstatus = np.column_stack((np_timestamp, np_operating_status))
-
-                        fuel_1_hour = (distance_1_hour / 1000) / cycle_efficiency
-
-                        fuel_level_first_next = fuel_level_first - fuel_1_hour
-                        operating_time_1_hour = calculate_operating_time_hour(arr_time_opstatus)
-
-                        last_latitude = np_latitude[-1]
-                        last_longitude = np_longitude[-1]
-                        last_altitude = np_altitude[-1]
-                        last_angle = np_angle[-1]
-
-                        # Simpan data dalam list sementara
-                        final_data_list.append([
-                            fuel_1_hour, fuel_level_first, last_latitude, last_longitude, last_altitude, 
-                            last_angle, distance_1_hour, current_time, 3600, operating_time_1_hour
-                        ])
-                        # Update current_time untuk iterasi berikutnya
-                        fuel_level_first = np.maximum(fuel_level_first_next, 0)
-                        current_time = next_time
-
-                    # Hitung total_distance setelah loop selesai
-                    total_distance = np.cumsum(cumulative_distance_hour)
-                    total_distance_recent = total_distance + recent_total_distance
-                    # print(f"Total Distance: {total_distance_recent}")
-
-                    # Gabungkan data akhir ke dalam array `final_data`
-                    final_data = np.array([
-                        row + [total_distance_recent[i]]
-                        for i, row in enumerate(final_data_list)
-                    ])
-                    for row in final_data:
                         try:
                             res_fuel_report_hour = FuelHourCreate(
-                                fuel=float(row[0]),
-                                fuel_level=float(row[1]),
-                                latitude=float(row[2]),
-                                longitude=float(row[3]),
-                                altitude=float(row[4]),
-                                angle=float(row[5]),
-                                distance=float(row[6]),
-                                total_distance=float(row[10]),
-                                timestamp=row[7].replace(minute=0, second=0, microsecond=0),
-                                sampling_time=int(row[8]),
-                                operating_time=int(row[9]),
+                                fuel=float(final_data[0]),
+                                fuel_level=float(final_data[1]),
+                                latitude=float(final_data[2]),
+                                longitude=float(final_data[3]),
+                                altitude=float(final_data[4]),
+                                angle=float(final_data[5]),
+                                distance=float(final_data[6]),
+                                total_distance=float(final_data[7]),
+                                timestamp=final_data[8].replace(minute=0, second=0, microsecond=0),
+                                sampling_time=int(final_data[9]),
+                                operating_time=int(final_data[10]),
                                 fuel_cycle={"connect": {"id": cycle_id}},
                                 vehicle={"connect": {"id": vehicle_id}}
                             )
                             await ReportRepository.create_fuel_report_hour(res_fuel_report_hour)
-                            log_hour.info(f"[Data Created] Vehicle ID: {vehicle_id}, Cycle ID: {cycle_id}, Timestamp: {row[7]}, Distance: {row[6]}")
+                            # log_hour.info(f"[Data Created] Vehicle ID: {vehicle_id}, Cycle ID: {cycle_id}, Timestamp: {final_data[8]}, Distance: {final_data[6]}")
                             # Update calculation_hour_status yang sudah diproses
-                            await LogRepository.update_hour_status(vehicle_id, row[7])
+                            await LogRepository.update_hour_status(vehicle_id, final_data[8])
                         except UniqueViolationError as uniqerr:
-                            log_hour.error(f"Data duplicate Vehicle ID: {vehicle_id}, Cycle ID: {cycle_id}, Timestamp: {row[7]}, tidak dibuat ulang ({uniqerr})")
+                            log_hour.error(f"Data duplicate Vehicle ID: {vehicle_id}, Cycle ID: {cycle_id}, Timestamp: {final_data[8]}, tidak dibuat ulang ({uniqerr})")
                         except Exception as err:
                             log_hour.error(f"Error saat membuat data baru. Vehicle ID: {vehicle_id}, Error: {err}")
+
+                        current_time = next_time
+                        continue
+
+                    # Ekstraksi data yang dibutuhkan untuk setiap entry dalam `data`
+                    np_timestamp = np.array([entry.timestamp.timestamp() for entry in data], dtype=np.float64)
+                    np_latitude = np.array([entry.latitude for entry in data], dtype=np.float64)
+                    np_longitude = np.array([entry.longitude for entry in data], dtype=np.float64)
+                    np_altitude = np.array([entry.altitude for entry in data], dtype=np.float64)
+                    np_angle = np.array([entry.angle for entry in data], dtype=np.float64)
+                    np_operating_status = np.array([entry.operate_status for entry in data], dtype=np.int8)
+                    
+                    coordinates = list(zip(np_latitude, np_longitude))
+                    distance_inside_hour = calculate_total_distance(0, coordinates)
+                    distance_1_hour = abs(distance_inside_hour[-1] - distance_inside_hour[0])
+                    distance_1_hour = np.minimum(distance_1_hour, 45000)
+
+                    arr_time_opstatus = np.column_stack((np_timestamp, np_operating_status))
+
+                    fuel_1_hour = (distance_1_hour / 1000) / cycle_efficiency
+                    fuel_1_hour = np.minimum(fuel_1_hour, 30)
+
+                    fuel_level_first_next = fuel_level_first - fuel_1_hour
+                    operating_time_1_hour = calculate_operating_time_hour(arr_time_opstatus)
+
+                    last_latitude = np_latitude[-1]
+                    last_longitude = np_longitude[-1]
+                    last_altitude = np_altitude[-1]
+                    last_angle = np_angle[-1]
+
+                    total_distance_hour = (last_report_hour.total_distance if last_report_hour else 0) + distance_1_hour
+
+                    final_data = np.array((fuel_1_hour, fuel_level_first, last_latitude, last_longitude, last_altitude, 
+                    last_angle, distance_1_hour, total_distance_hour, current_time, 3600, operating_time_1_hour))
+
+                    try:
+                        res_fuel_report_hour = FuelHourCreate(
+                            fuel=float(final_data[0]),
+                            fuel_level=float(final_data[1]),
+                            latitude=float(final_data[2]),
+                            longitude=float(final_data[3]),
+                            altitude=float(final_data[4]),
+                            angle=float(final_data[5]),
+                            distance=float(final_data[6]),
+                            total_distance=float(final_data[7]),
+                            timestamp=final_data[8].replace(minute=0, second=0, microsecond=0),
+                            sampling_time=int(final_data[9]),
+                            operating_time=int(final_data[10]),
+                            fuel_cycle={"connect": {"id": cycle_id}},
+                            vehicle={"connect": {"id": vehicle_id}}
+                        )
+                        await ReportRepository.create_fuel_report_hour(res_fuel_report_hour)
+                        log_hour.info(f"[Data Created] Vehicle ID: {vehicle_id}, Cycle ID: {cycle_id}, Timestamp: {final_data[8]}, Distance: {final_data[6]}")
+                        # Update calculation_hour_status yang sudah diproses
+                        await LogRepository.update_hour_status(vehicle_id, final_data[8])
+                    except UniqueViolationError as uniqerr:
+                        log_hour.error(f"Data duplicate Vehicle ID: {vehicle_id}, Cycle ID: {cycle_id}, Timestamp: {final_data[8]}, tidak dibuat ulang ({uniqerr})")
+                    except Exception as err:
+                        log_hour.error(f"Error saat membuat data baru. Vehicle ID: {vehicle_id}, Error: {err}")
+                
+                    # Update current_time untuk iterasi berikutnya
+                    fuel_level_first = np.maximum(fuel_level_first_next, 0)
+                    current_time = next_time
 
             except Exception as e:
                 log_hour.error(f"[Hour] Error processing vehicle_id: {ids}, {e}")
         await database_connector.disconnect()
 
 import asyncio
-asyncio.run(EfficiencyService.cycle_efficiency())
+# asyncio.run(EfficiencyService.cycle_efficiency())
 asyncio.run(EfficiencyService.hour_efficiency())

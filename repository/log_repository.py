@@ -55,3 +55,16 @@ class LogRepository:
             include={"vehicle": True}
         )
         return data
+    
+    @staticmethod
+    async def get_unprocessed_hour_tcp(vehicle_id, start_time: datetime, end_time: datetime, db=database_connector.prisma):
+        data = await db.data_teltonika_buffer.find_many(
+            where={"vehicle_id": vehicle_id,
+                "timestamp": {
+                    "gte": start_time,  
+                    "lte": end_time     
+                }
+            },
+            include={"vehicle": True}
+        )
+        return data

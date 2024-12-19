@@ -23,14 +23,15 @@ class ReportRepository:
     @staticmethod
     async def get_cycle_efficiency(vehicle_id, db=database_connector.prisma):
         data_teltonika_records = await db.data_teltonika_buffer.find_first(
-            where={"vehicle_id": vehicle_id, "calculation_hour_status": False},
-            order={"timestamp": "asc"},
+            where={"vehicle_id": vehicle_id, "calculation_hour_status": True},
+            order={"timestamp": "desc"},
             include={"vehicle": True}
         )
         earliest_timestamp = data_teltonika_records.timestamp
         # log_debug.info(f"earliest_timestamp: {earliest_timestamp}")
-        data = await db.fuel_cycle.find_many(
-            where={"vehicle_id": vehicle_id, "timestamp_first": {"gte": earliest_timestamp}},
+        data = await db.fuel_cycle.find_first(
+            where={"vehicle_id": vehicle_id, "timestamp_first": {"lte": earliest_timestamp}},
+            order={"timestamp_last": "desc"},
             include={"vehicle": True}
         )
         return data
@@ -44,6 +45,15 @@ class ReportRepository:
         )
         return data
     
+    @staticmethod
+    async def get_last_report_hour(vehicle_id, db=database_connector.prisma):
+        data = await db.fuel_report_hour.find_first(
+            where={"vehicle_id": vehicle_id},
+            order={"timestamp": "desc"},
+            include={"vehicle": True}
+        )
+        return data
+
     @staticmethod
     async def create_vehicle(data: VehicleCreate, db=database_connector.prisma):
         return await db.vehicle.create(data)
